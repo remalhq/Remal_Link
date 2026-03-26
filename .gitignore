@@ -1,0 +1,57 @@
+######################################
+# This file is used to ignore files and directories
+# that should not be tracked by Git.
+######################################
+
+# VSCode settings
+.vscode/
+
+# Agents
+.claude/
+
+# MacOS Finder junk
+.DS_Store
+
+# KiCad Generated and Temporary Files
+# Project-local settings and caches
+*.kicad_prl
+fp-info-cache
+*~*
+*.bak
+*.tmp
+*.autosave
+*#auto_saved_files#/
+*backups/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Private/credentials folder
+src/private/
+private/
+
+# Credentials and secrets (fallback if not using private/ folder)
+WifiCreds.h
+*Creds.h
+secrets.h
+*.key
+*.pem
+
+# Build artifacts
+*.bin
+*.elf
+*.hex
+
+# IDE specific
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.remal_link_settings.json
