@@ -1,6 +1,6 @@
 # Remal Link
 
-Remal Link is a desktop Bluetooth Low Energy serial terminal for ESP32 based boards using Nordic UART Service style UUIDs.
+Remal Link is a desktop Bluetooth Low Energy serial terminal for Remal ESP32-based boards using Nordic UART Service style UUIDs.
 
 It gives you a GUI terminal for scan/connect/send/receive workflows, with reconnect support and long-session safety controls.
 
@@ -42,9 +42,37 @@ pip install -r requirements.txt
 python remal_link.py
 ```
 
+## Desktop Shortcut (Linux)
+This repository includes a launcher script and icon so you can create a desktop shortcut that opens the app by double-click.
+
+- Launcher script: `remal_link_launcher.sh`
+- Icon asset: `icon/Remal_Logo.svg`
+
+Example `.desktop` entry:
+
+```ini
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Remal Link
+Comment=BLE Serial Terminal for Remal ESP32-based boards
+Exec=/ABSOLUTE/PATH/TO/REPO/remal_link_launcher.sh
+Path=/ABSOLUTE/PATH/TO/REPO
+Icon=/ABSOLUTE/PATH/TO/REPO/icon/Remal_Logo.svg
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
+```
+
+After creating the desktop file, make it executable:
+
+```bash
+chmod +x ~/Desktop/Remal_Link.desktop
+```
+
 ## First Run Workflow
 1. Wait for auto-scan to discover nearby BLE devices.
-2. Select your ESP32 device from the dropdown.
+2. Select your Remal ESP32-based board from the dropdown.
 3. Click `Connect`.
 4. Type a message, choose a line ending, and click `Send`.
 5. Use `Clear` to clear the terminal at any time.
@@ -65,6 +93,8 @@ UUID constants live in `src/remal_link_ble/config/uuids.py`.
 
 ## Project Structure
 - `remal_link.py`: launcher entry point
+- `remal_link_launcher.sh`: shell launcher used by desktop shortcut (prefers `.venv` Python)
+- `icon/Remal_Logo.svg`: app/shortcut icon
 - `src/remal_link_ble/app.py`: Qt app bootstrap
 - `src/remal_link_ble/ui/main_window.py`: GUI and terminal rendering
 - `src/remal_link_ble/core/controller.py`: UI/BLE orchestration
