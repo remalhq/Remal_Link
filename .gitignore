@@ -8,6 +8,7 @@
 
 # Agents
 .claude/
+.codex
 
 # MacOS Finder junk
 .DS_Store

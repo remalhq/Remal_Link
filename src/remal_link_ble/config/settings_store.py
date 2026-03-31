@@ -19,6 +19,7 @@ class AppSettings:
     auto_reconnect_enabled: bool = False
     line_ending: str = "\n"
     auto_scroll_enabled: bool = True
+    device_name_filter: str = ""
 
 
 class SettingsStore:
@@ -46,11 +47,16 @@ class SettingsStore:
         if not isinstance(line_ending, str) or line_ending not in VALID_LINE_ENDINGS:
             line_ending = "\n"
 
+        device_name_filter = parsed_payload.get("device_name_filter", "")
+        if not isinstance(device_name_filter, str):
+            device_name_filter = ""
+
         return AppSettings(
             timestamps_enabled=bool(parsed_payload.get("timestamps_enabled", True)),
             auto_reconnect_enabled=bool(parsed_payload.get("auto_reconnect_enabled", False)),
             line_ending=line_ending,
             auto_scroll_enabled=bool(parsed_payload.get("auto_scroll_enabled", True)),
+            device_name_filter=device_name_filter,
         )
 
     def save(self, settings: AppSettings) -> None:
@@ -61,6 +67,7 @@ class SettingsStore:
             "auto_reconnect_enabled": settings.auto_reconnect_enabled,
             "line_ending": safe_line_ending,
             "auto_scroll_enabled": settings.auto_scroll_enabled,
+            "device_name_filter": settings.device_name_filter,
         }
 
         try:

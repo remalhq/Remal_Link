@@ -157,7 +157,8 @@ class BleTerminalController(QObject):
     def on_send_requested(self, text: str, line_ending: str) -> None:
         """Handle outgoing terminal messages from the GUI."""
         if not self._client.is_connected:
-            self._status_changed.emit("Status: Connect to a device before sending data.")
+            self._status_changed.emit("Status: No device is connected.")
+            self._system_message.emit("Error: No device is connected.")
             return
 
         payload = text + line_ending

@@ -74,6 +74,11 @@ ANSI_BASE_16_COLORS: tuple[str, ...] = (
 
 MAX_TERMINAL_SCROLLBACK_LINES = 4000
 MAX_SYSTEM_LOG_ENTRIES = 1500
+ABOUT_VERSION = "v1.1"
+ABOUT_AUTHOR_NAME = "Khalid Mansoor AlAwadhi"
+ABOUT_AUTHOR_EMAIL = "khalid@remal.io"
+ABOUT_WEBSITE_URL = "https://www.remal.io"
+ABOUT_WEBSITE_LABEL = "www.remal.io"
 
 
 class PreferencesDialog(QDialog):
@@ -141,6 +146,46 @@ class SystemLogDialog(QDialog):
         self._log_view.setTextCursor(cursor)
 
 
+class AboutDialog(QDialog):
+    """Dialog that displays brief app metadata and project links."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("About Remal Link")
+        self.setModal(True)
+
+        summary_label = QLabel(
+            "Remal Link is a lightweight BLE UART terminal for Remal ESP32-based boards."
+        )
+        summary_label.setWordWrap(True)
+
+        details_label = QLabel(
+            "<b>Version:</b> {version}<br>"
+            "<b>Author:</b> {author}<br>"
+            "<b>Email:</b> <a href=\"mailto:{email}\">{email}</a><br>"
+            "<b>Website:</b> <a href=\"{website}\">{website_label}</a>".format(
+                version=ABOUT_VERSION,
+                author=ABOUT_AUTHOR_NAME,
+                email=ABOUT_AUTHOR_EMAIL,
+                website=ABOUT_WEBSITE_URL,
+                website_label=ABOUT_WEBSITE_LABEL,
+            )
+        )
+        details_label.setOpenExternalLinks(True)
+        details_label.setWordWrap(True)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)
+
+        layout = QVBoxLayout()
+        layout.addWidget(summary_label)
+        layout.addWidget(details_label)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+
 class MainWindow(QMainWindow):
     """Primary GUI window for BLE scan/connect/send/receive operations."""
 
@@ -162,8 +207,13 @@ class MainWindow(QMainWindow):
         self._timestamps_enabled = initial_settings.timestamps_enabled
         self._system_log_entries: list[str] = []
         self._system_log_dialog: SystemLogDialog | None = None
+        self._all_devices: list[DiscoveredDevice] = []
 
         self._device_combo = QComboBox()
+        self._device_filter_input = QLineEdit()
+        self._device_filter_input.setPlaceholderText("Filter by device name")
+        self._device_filter_input.setClearButtonEnabled(True)
+        self._device_filter_input.setText(initial_settings.device_name_filter)
         self._scan_button = QPushButton("Scan")
         self._connect_button = QPushButton("Connect")
         self._disconnect_button = QPushButton("Disconnect")
@@ -197,6 +247,8 @@ class MainWindow(QMainWindow):
     def _build_layout(self) -> None:
         top_controls_layout = QHBoxLayout()
         top_controls_layout.addWidget(self._scan_button)
+        top_controls_layout.addWidget(QLabel("Name filter:"))
+        top_controls_layout.addWidget(self._device_filter_input)
         top_controls_layout.addWidget(self._device_combo, stretch=1)
         top_controls_layout.addWidget(self._connect_button)
         top_controls_layout.addWidget(self._disconnect_button)
@@ -228,6 +280,9 @@ class MainWindow(QMainWindow):
         menu = self.menuBar().addMenu("Menu")
         preferences_action = menu.addAction("Preferences")
         preferences_action.triggered.connect(lambda _checked=False: self._open_preferences())
+        menu.addSeparator()
+        about_action = menu.addAction("About")
+        about_action.triggered.connect(lambda _checked=False: self._open_about())
 
     def _wire_events(self) -> None:
         self._scan_button.clicked.connect(lambda _checked=False: self.scan_requested.emit())
@@ -242,10 +297,15 @@ class MainWindow(QMainWindow):
         self._auto_scroll_checkbox.toggled.connect(lambda _checked: self._persist_settings())
         self._line_ending_combo.currentIndexChanged.connect(lambda _index: self._persist_settings())
         self._message_input.returnPressed.connect(self._emit_send_request)
+        self._device_filter_input.textChanged.connect(self._on_device_filter_changed)
         self._device_combo.currentIndexChanged.connect(lambda _index: self._apply_control_state())
 
     def _on_auto_reconnect_toggled(self, checked: bool) -> None:
         self.auto_reconnect_changed.emit(bool(checked))
+        self._persist_settings()
+
+    def _on_device_filter_changed(self, _text: str) -> None:
+        self._refresh_device_combo()
         self._persist_settings()
 
     def _emit_connect_request(self) -> None:
@@ -269,15 +329,8 @@ class MainWindow(QMainWindow):
 
     def set_devices(self, devices: list[DiscoveredDevice]) -> None:
         """Refresh the BLE device dropdown."""
-        self._device_combo.clear()
-
-        for device in devices:
-            self._device_combo.addItem(device.display_label(), device.address)
-
-        if not devices:
-            self._device_combo.addItem("No BLE devices found", None)
-
-        self._apply_control_state()
+        self._all_devices = list(devices)
+        self._refresh_device_combo()
 
     def set_status(self, status_text: str) -> None:
         """Update the status line."""
@@ -329,6 +382,10 @@ class MainWindow(QMainWindow):
             self._timestamps_enabled = dialog.timestamps_enabled()
             self._persist_settings()
 
+    def _open_about(self) -> None:
+        dialog = AboutDialog(parent=self)
+        dialog.exec()
+
     def _clear_terminal(self) -> None:
         self._terminal_log.clear()
 
@@ -366,6 +423,7 @@ class MainWindow(QMainWindow):
                 auto_reconnect_enabled=self._auto_reconnect_checkbox.isChecked(),
                 line_ending=self._current_line_ending(),
                 auto_scroll_enabled=self._auto_scroll_checkbox.isChecked(),
+                device_name_filter=self._device_filter_input.text(),
             )
         )
 
@@ -375,10 +433,39 @@ class MainWindow(QMainWindow):
         self._scan_button.setEnabled(not self._is_busy)
         self._connect_button.setEnabled(not self._is_busy and not self._is_connected and has_devices)
         self._disconnect_button.setEnabled(not self._is_busy and self._is_connected)
-        self._message_input.setEnabled(not self._is_busy and self._is_connected)
-        self._line_ending_combo.setEnabled(not self._is_busy and self._is_connected)
-        self._send_button.setEnabled(not self._is_busy and self._is_connected)
+        self._message_input.setEnabled(True)
+        self._line_ending_combo.setEnabled(True)
+        self._send_button.setEnabled(True)
         self._clear_button.setEnabled(True)
+
+    def _refresh_device_combo(self) -> None:
+        selected_address = self._device_combo.currentData()
+        name_filter = self._device_filter_input.text().strip().lower()
+
+        if name_filter:
+            filtered_devices = [
+                device for device in self._all_devices if name_filter in device.name.lower()
+            ]
+        else:
+            filtered_devices = list(self._all_devices)
+
+        self._device_combo.blockSignals(True)
+        self._device_combo.clear()
+
+        for device in filtered_devices:
+            self._device_combo.addItem(device.display_label(), device.address)
+
+        if not filtered_devices:
+            empty_label = "No matching devices" if self._all_devices else "No BLE devices found"
+            self._device_combo.addItem(empty_label, None)
+
+        if selected_address is not None:
+            selected_index = self._device_combo.findData(selected_address)
+            if selected_index >= 0:
+                self._device_combo.setCurrentIndex(selected_index)
+
+        self._device_combo.blockSignals(False)
+        self._apply_control_state()
 
     def _append_log_line(self, prefix: str, text: str) -> None:
         line_prefix = self._build_line_prefix(prefix)

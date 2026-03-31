@@ -7,6 +7,7 @@ It gives you a GUI terminal for scan/connect/send/receive workflows, with reconn
 ## Features
 - BLE scan, connect, disconnect, and UART text send/receive
 - Auto-scan while disconnected
+- Name filter for scanned device list
 - Optional auto reconnect to the last connected device
 - Line ending selector: `None`, `\n`, `\r`, `\r\n`
 - ANSI foreground color rendering in terminal output
@@ -72,15 +73,20 @@ chmod +x ~/Desktop/Remal_Link.desktop
 
 ## First Run Workflow
 1. Wait for auto-scan to discover nearby BLE devices.
-2. Select your Remal ESP32-based board from the dropdown.
-3. Click `Connect`.
-4. Type a message, choose a line ending, and click `Send`.
-5. Use `Clear` to clear the terminal at any time.
+2. Optional: use `Name filter` to narrow the device dropdown.
+3. Select your Remal ESP32-based board from the dropdown.
+4. Click `Connect`.
+5. Type a message, choose a line ending, and click `Send`.
+6. Use `Clear` to clear the terminal at any time.
 
 ## UI Notes
+- `Name filter`: type part of a BLE device name to show matching scan results only.
+- `Name filter` value is persisted between launches.
+- Send input stays enabled during disconnect/reconnect; sending while disconnected logs `No device is connected`.
 - `Auto reconnect`: retries the last connected device after unexpected disconnects.
 - `Auto-scroll`: when enabled, terminal view follows new messages; when disabled, view position stays where you left it.
 - `Menu -> Preferences`: enable/disable terminal timestamps.
+- `Menu -> About`: shows brief app info, version, author email, and Remal website link.
 - `Show System Log`: view timestamped internal status messages.
 
 ## BLE UUID Defaults
@@ -106,3 +112,12 @@ UUID constants live in `src/remal_link_ble/config/uuids.py`.
 - Terminal scrollback is capped (oldest lines are dropped automatically).
 - System log entry count is capped.
 - `Clear` stays available even during reconnect/busy states.
+
+## Changelog
+### v1.1:
+- Added name filter to auto-scan for easier device selection, saved between sessions.
+- Added `Menu -> About` dialog with brief app info, version, author name/email, and website link (`www.remal.io`).
+- Kept send controls enabled during reconnect/disconnect and added system error feedback when no device is connected.
+
+### v1.0 - Hello, World!
+- Initial release with core BLE UART terminal functionality, auto-scan, auto-reconnect, and line ending controls.
