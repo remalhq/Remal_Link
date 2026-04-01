@@ -74,7 +74,8 @@ ANSI_BASE_16_COLORS: tuple[str, ...] = (
 
 MAX_TERMINAL_SCROLLBACK_LINES = 4000
 MAX_SYSTEM_LOG_ENTRIES = 1500
-ABOUT_VERSION = "v1.1"
+DEFAULT_WINDOW_TITLE = "Remal Link BLE Terminal"
+ABOUT_VERSION = "v1.2"
 ABOUT_AUTHOR_NAME = "Khalid Mansoor AlAwadhi"
 ABOUT_AUTHOR_EMAIL = "khalid@remal.io"
 ABOUT_WEBSITE_URL = "https://www.remal.io"
@@ -198,7 +199,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_store: SettingsStore, initial_settings: AppSettings) -> None:
         super().__init__()
 
-        self.setWindowTitle("Remal Link BLE Terminal")
+        self.setWindowTitle(DEFAULT_WINDOW_TITLE)
         self.resize(880, 560)
 
         self._settings_store = settings_store
@@ -340,6 +341,7 @@ class MainWindow(QMainWindow):
         """Set current connection state and update control availability."""
         self._is_connected = is_connected
         self._apply_control_state()
+        self._update_window_title()
 
     def set_busy(self, is_busy: bool) -> None:
         """Toggle busy state while asynchronous operations are running."""
@@ -433,10 +435,41 @@ class MainWindow(QMainWindow):
         self._scan_button.setEnabled(not self._is_busy)
         self._connect_button.setEnabled(not self._is_busy and not self._is_connected and has_devices)
         self._disconnect_button.setEnabled(not self._is_busy and self._is_connected)
+        self._device_filter_input.setEnabled(not self._is_connected)
+        self._device_combo.setEnabled(not self._is_connected and not self._is_busy)
         self._message_input.setEnabled(True)
         self._line_ending_combo.setEnabled(True)
         self._send_button.setEnabled(True)
         self._clear_button.setEnabled(True)
+
+    def _update_window_title(self) -> None:
+        if not self._is_connected:
+            self.setWindowTitle(DEFAULT_WINDOW_TITLE)
+            return
+
+        connected_device_name = self._selected_device_name_for_title()
+        if connected_device_name is None:
+            self.setWindowTitle(DEFAULT_WINDOW_TITLE)
+            return
+
+        self.setWindowTitle(f"{DEFAULT_WINDOW_TITLE} - {connected_device_name}")
+
+    def _selected_device_name_for_title(self) -> str | None:
+        selected_address = self._device_combo.currentData()
+        if selected_address is not None:
+            selected_address_text = str(selected_address)
+            for device in self._all_devices:
+                if device.address == selected_address_text:
+                    return device.name
+
+        current_label = self._device_combo.currentText().strip()
+        if current_label in {"", "No BLE devices found", "No matching devices"}:
+            return None
+
+        if " (" in current_label:
+            return current_label.split(" (", 1)[0].strip()
+
+        return current_label
 
     def _refresh_device_combo(self) -> None:
         selected_address = self._device_combo.currentData()

@@ -83,6 +83,8 @@ chmod +x ~/Desktop/Remal_Link.desktop
 - `Name filter`: type part of a BLE device name to show matching scan results only.
 - `Name filter` value is persisted between launches.
 - Send input stays enabled during disconnect/reconnect; sending while disconnected logs `No device is connected`.
+- Device selection is locked while connected (including name filter). Disconnect first to switch devices.
+- Window title shows the active connected device name while connected.
 - `Auto reconnect`: retries the last connected device after unexpected disconnects.
 - `Auto-scroll`: when enabled, terminal view follows new messages; when disabled, view position stays where you left it.
 - `Menu -> Preferences`: enable/disable terminal timestamps.
@@ -114,6 +116,10 @@ UUID constants live in `src/remal_link_ble/config/uuids.py`.
 - `Clear` stays available even during reconnect/busy states.
 
 ## Changelog
+### v1.2:
+- Locked device selection (dropdown + name filter) while connected, so active device stays fixed until disconnect.
+- Added connected device name to the window title bar while connected.
+
 ### v1.1:
 - Added name filter to auto-scan for easier device selection, saved between sessions.
 - Added `Menu -> About` dialog with brief app info, version, author name/email, and website link (`www.remal.io`).
