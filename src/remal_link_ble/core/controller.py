@@ -51,10 +51,12 @@ class BleTerminalController(QObject):
         self._auto_scan_timer.setSingleShot(True)
         self._auto_scan_timer.timeout.connect(self._on_auto_scan_timer_timeout)
 
-        self._auto_reconnect_retry_ms = 2500
         self._auto_reconnect_timer = QTimer(self)
         self._auto_reconnect_timer.setSingleShot(True)
         self._auto_reconnect_timer.timeout.connect(self._on_auto_reconnect_timer_timeout)
+        self._auto_reconnect_initial_delay_ms = 350
+        self._auto_reconnect_retry_ms = 1200
+        self._auto_reconnect_blocked_retry_ms = 400
 
         self._client.set_receive_callback(self._on_receive_callback)
         self._client.set_disconnected_callback(self._on_disconnected_callback)
@@ -85,9 +87,18 @@ class BleTerminalController(QObject):
     @Slot()
     def on_scan_requested(self) -> None:
         """Handle GUI request to scan for BLE devices."""
+        was_auto_reconnect_attempt = self._is_auto_reconnect_attempt
         self._is_auto_reconnect_attempt = False
         self._stop_auto_reconnect()
         self._stop_auto_scan()
+
+        if self._is_connecting:
+            if was_auto_reconnect_attempt:
+                self._status_changed.emit("Status: Auto-reconnect canceled. Current attempt is finishing...")
+                self._system_message.emit("Auto-reconnect canceled by user.")
+            else:
+                self._status_changed.emit("Status: Connection attempt already in progress.")
+            return
 
         if self._is_scanning:
             self._status_changed.emit("Status: Scan already running...")
@@ -124,9 +135,18 @@ class BleTerminalController(QObject):
     @Slot(str)
     def on_connect_requested(self, address: str) -> None:
         """Handle GUI request to connect to a selected BLE device."""
+        was_auto_reconnect_attempt = self._is_auto_reconnect_attempt
         self._is_auto_reconnect_attempt = False
         self._stop_auto_reconnect()
         self._stop_auto_scan()
+
+        if self._is_connecting:
+            if was_auto_reconnect_attempt:
+                self._status_changed.emit("Status: Auto-reconnect canceled. Current attempt is finishing...")
+                self._system_message.emit("Auto-reconnect canceled by user.")
+            else:
+                self._status_changed.emit("Status: Connection attempt already in progress.")
+            return
 
         if self._is_scanning:
             self._pending_connect_address = address
@@ -174,6 +194,9 @@ class BleTerminalController(QObject):
         """Handle user toggling auto reconnect option."""
         self._auto_reconnect_enabled = is_enabled
         if not is_enabled:
+            if self._is_auto_reconnect_attempt:
+                self._status_changed.emit("Status: Auto-reconnect canceled by user.")
+                self._system_message.emit("Auto-reconnect canceled by user.")
             self._is_auto_reconnect_attempt = False
             self._stop_auto_reconnect()
             return
@@ -207,10 +230,11 @@ class BleTerminalController(QObject):
             not self._auto_reconnect_enabled
             or self._last_connected_address is None
             or self._client.is_connected
-            or self._is_connecting
-            or self._is_busy
-            or self._is_scanning
         ):
+            return
+
+        if self._is_connecting or self._is_busy or self._is_scanning:
+            self._schedule_auto_reconnect(delay_ms=self._auto_reconnect_blocked_retry_ms)
             return
 
         self._stop_auto_scan()
@@ -218,6 +242,7 @@ class BleTerminalController(QObject):
         self._begin_connect(
             self._last_connected_address,
             status_prefix="Status: Auto-reconnecting to ",
+            set_busy=False,
         )
 
     def _set_busy(self, is_busy: bool) -> None:
@@ -246,7 +271,7 @@ class BleTerminalController(QObject):
 
     @Slot(int)
     def _schedule_auto_reconnect_on_ui(self, delay_ms: int) -> None:
-        if not self._auto_reconnect_enabled or self._client.is_connected or self._is_connecting:
+        if not self._auto_reconnect_enabled or self._client.is_connected:
             return
 
         self._auto_reconnect_timer.start(delay_ms)
@@ -345,7 +370,7 @@ class BleTerminalController(QObject):
             self._status_changed.emit(
                 f"Status: Disconnected. Auto-reconnect to {self._last_connected_address} scheduled..."
             )
-            self._schedule_auto_reconnect(delay_ms=1000)
+            self._schedule_auto_reconnect(delay_ms=self._auto_reconnect_initial_delay_ms)
             return
 
         self._schedule_auto_scan(delay_ms=300)
@@ -374,10 +399,16 @@ class BleTerminalController(QObject):
         if not self._client.is_connected:
             self._schedule_auto_scan(delay_ms=self._auto_scan_retry_ms)
 
-    def _begin_connect(self, address: str, status_prefix: str = "Status: Connecting to ") -> None:
+    def _begin_connect(
+        self,
+        address: str,
+        status_prefix: str = "Status: Connecting to ",
+        set_busy: bool = True,
+    ) -> None:
         self._pending_connect_address = None
         self._is_connecting = True
-        self._set_busy(True)
+        if set_busy:
+            self._set_busy(True)
         self._status_changed.emit(f"{status_prefix}{address}...")
 
         self._runner.submit(

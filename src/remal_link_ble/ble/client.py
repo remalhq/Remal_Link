@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,7 @@ from remal_link_ble.config.uuids import DEFAULT_UART_UUIDS, UartUuids
 from remal_link_ble.core.models import DiscoveredDevice
 
 MAX_WRITE_CHUNK_BYTES = 180
+BLE_CONNECT_TIMEOUT_SECONDS = 8.0
 
 
 class BleUartClient:
@@ -58,7 +60,16 @@ class BleUartClient:
         await self.disconnect()
 
         client = BleakClient(address, disconnected_callback=self._handle_disconnected)
-        await client.connect()
+        try:
+            await asyncio.wait_for(client.connect(), timeout=BLE_CONNECT_TIMEOUT_SECONDS)
+        except TimeoutError as error:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"BLE connect timed out after {BLE_CONNECT_TIMEOUT_SECONDS:.1f}s"
+            ) from error
 
         self._client = client
 
