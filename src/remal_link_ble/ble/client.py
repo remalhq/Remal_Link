@@ -44,7 +44,14 @@ class BleUartClient:
 
     async def scan_devices(self, timeout_seconds: float = 5.0) -> list[DiscoveredDevice]:
         """Scan and return nearby BLE devices sorted by name and address."""
-        discovered = await BleakScanner.discover(timeout=timeout_seconds)
+        scanner = BleakScanner()
+        await scanner.start()
+        try:
+            await asyncio.sleep(timeout_seconds)
+        finally:
+            await scanner.stop()
+
+        discovered = list(scanner.discovered_devices)
 
         devices: list[DiscoveredDevice] = []
         for device in discovered:

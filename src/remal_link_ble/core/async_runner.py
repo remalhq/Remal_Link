@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from concurrent.futures import CancelledError, Future
 import threading
 from typing import Any
 
@@ -40,7 +41,8 @@ class AsyncRunner:
         coroutine: Awaitable[Any],
         on_result: Callable[[Any], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
-    ) -> None:
+        on_cancel: Callable[[], None] | None = None,
+    ) -> Future[Any]:
         """Schedule a coroutine for background execution."""
         if self._loop is None:
             raise RuntimeError("Async loop is not running.")
@@ -50,6 +52,10 @@ class AsyncRunner:
         def _on_done(completed_future: Any) -> None:
             try:
                 result = completed_future.result()
+            except CancelledError:
+                if on_cancel is not None:
+                    on_cancel()
+                return
             except Exception as exc:
                 if on_error is not None:
                     on_error(exc)
@@ -59,6 +65,14 @@ class AsyncRunner:
                 on_result(result)
 
         future.add_done_callback(_on_done)
+        return future
+
+    def cancel(self, future: Future[Any] | None) -> bool:
+        """Cancel a submitted coroutine future."""
+        if future is None:
+            return False
+
+        return future.cancel()
 
     def stop(self) -> None:
         """Stop the background event loop and wait for thread shutdown."""

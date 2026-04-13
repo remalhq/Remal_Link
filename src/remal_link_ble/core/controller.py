@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from concurrent.futures import Future
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
@@ -43,6 +44,7 @@ class BleTerminalController(QObject):
         self._auto_reconnect_enabled = self._window.auto_reconnect_enabled()
         self._last_connected_address: str | None = None
         self._pending_connect_address: str | None = None
+        self._active_scan_future: Future[object] | None = None
 
         self._auto_scan_interval_ms = 2000
         self._auto_scan_retry_ms = 3500
@@ -126,10 +128,11 @@ class BleTerminalController(QObject):
         else:
             self._status_changed.emit("Status: Auto-scanning for BLE devices...")
 
-        self._runner.submit(
+        self._active_scan_future = self._runner.submit(
             self._client.scan_devices(timeout_seconds=self._auto_scan_timeout_seconds),
             on_result=lambda devices: self._handle_scan_result(devices, is_manual),
             on_error=lambda error: self._handle_scan_error(error, is_manual),
+            on_cancel=lambda: self._handle_scan_canceled(is_manual),
         )
 
     @Slot(str)
@@ -150,7 +153,10 @@ class BleTerminalController(QObject):
 
         if self._is_scanning:
             self._pending_connect_address = address
-            self._status_changed.emit("Status: Finishing scan, then connecting...")
+            self._status_changed.emit("Status: Stopping auto-scan and connecting...")
+            scan_canceled = self._runner.cancel(self._active_scan_future)
+            if not scan_canceled:
+                self._status_changed.emit("Status: Finishing scan, then connecting...")
             return
 
         self._begin_connect(address)
@@ -284,6 +290,7 @@ class BleTerminalController(QObject):
         self._auto_reconnect_timer.stop()
 
     def _handle_scan_result(self, devices: list[DiscoveredDevice], is_manual: bool) -> None:
+        self._active_scan_future = None
         self._is_scanning = False
         self._devices_ready.emit(devices)
         if is_manual:
@@ -314,6 +321,7 @@ class BleTerminalController(QObject):
         self._schedule_auto_scan(delay_ms=self._auto_scan_interval_ms)
 
     def _handle_scan_error(self, error: Exception, is_manual: bool) -> None:
+        self._active_scan_future = None
         self._is_scanning = False
         if is_manual:
             self._set_busy(False)
@@ -340,6 +348,33 @@ class BleTerminalController(QObject):
             return
 
         self._schedule_auto_scan(delay_ms=self._auto_scan_retry_ms)
+
+    def _handle_scan_canceled(self, is_manual: bool) -> None:
+        self._active_scan_future = None
+        self._is_scanning = False
+        if is_manual:
+            self._set_busy(False)
+
+        if (
+            self._pending_connect_address is not None
+            and not self._client.is_connected
+            and not self._is_connecting
+        ):
+            pending_address = self._pending_connect_address
+            self._pending_connect_address = None
+            self._begin_connect(pending_address)
+            return
+
+        if self._client.is_connected or self._is_connecting:
+            return
+
+        if is_manual:
+            self._status_changed.emit("Status: Scan canceled.")
+            self._schedule_auto_scan(delay_ms=self._auto_scan_retry_ms)
+            return
+
+        self._status_changed.emit("Status: Auto-scan paused.")
+        self._schedule_auto_scan(delay_ms=self._auto_scan_interval_ms)
 
     def _handle_connect_result(self, address: str) -> None:
         self._stop_auto_reconnect()

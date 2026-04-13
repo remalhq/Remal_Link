@@ -87,6 +87,7 @@ chmod +x ~/Desktop/Remal_Link.desktop
 - Window title shows the active connected device name while connected.
 - Auto-reconnect can be canceled anytime (for example, click `Scan`/`Connect` or disable `Auto reconnect`) without freezing the main buttons.
 - Reconnect timing is tuned for faster same-device recovery with shorter retry delays and a bounded connect timeout.
+- Clicking `Connect` immediately stops active auto-scan and starts connect flow; auto-scan resumes after disconnect (unless auto-reconnect takes over).
 - `Auto reconnect`: retries the last connected device after unexpected disconnects.
 - `Auto-scroll`: when enabled, terminal view follows new messages; when disabled, view position stays where you left it.
 - `Menu -> Preferences`: enable/disable terminal timestamps.
@@ -118,6 +119,9 @@ UUID constants live in `src/remal_link_ble/config/uuids.py`.
 - `Clear` stays available even during reconnect/busy states.
 
 ## Changelog
+### v1.4:
+- Clicking `Connect` now immediately stops active auto-scan and starts connection; auto-scan resumes after disconnect unless auto-reconnect takes over.
+
 ### v1.3:
 - Reduced slow same-device reconnects by shortening initial/retry delays, quickly re-arming blocked reconnect attempts, and adding an explicit BLE connect timeout.
 - Kept main buttons responsive during auto-reconnect attempts instead of freezing them.
